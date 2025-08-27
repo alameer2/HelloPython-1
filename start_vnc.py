@@ -84,10 +84,10 @@ wait
                 "-SecurityTypes", "VncAuth"
             ]
             
-            # Start Xvnc in background
+            # Start Xvnc in background  
             process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
                 preexec_fn=os.setsid
             )
@@ -114,7 +114,7 @@ wait
             return False
             
     def start_window_manager(self):
-        """Start window manager in the VNC session"""
+        """Start window manager and Firefox with persistent profile"""
         try:
             env = os.environ.copy()
             env["DISPLAY"] = self.vnc_display
@@ -130,8 +130,65 @@ wait
             
             self.processes.append(wm_process)
             print(f"✓ Window manager started")
+            
+            # Wait for window manager to initialize
+            time.sleep(3)
+            
+            # Start Firefox with persistent profile
+            self.start_firefox_with_profile(env)
+            
         except Exception as e:
             print(f"⚠ Window manager failed to start: {e}")
+            
+    def start_firefox_with_profile(self, env):
+        """Start Firefox with persistent profile for session saving"""
+        try:
+            firefox_profile_dir = Path.home() / "firefox_profile"
+            firefox_profile_dir.mkdir(exist_ok=True)
+            
+            # Create Firefox prefs for session saving
+            prefs_file = firefox_profile_dir / "user.js"
+            prefs_content = '''
+// Enable session restore
+user_pref("browser.sessionstore.resume_from_crash", true);
+user_pref("browser.startup.page", 3); // Restore previous session
+user_pref("browser.sessionstore.restore_on_demand", false);
+user_pref("browser.sessionstore.restore_hidden_tabs", true);
+user_pref("browser.sessionstore.restore_tabs_lazily", false);
+user_pref("browser.sessionstore.max_tabs_undo", 25);
+user_pref("browser.sessionstore.max_windows_undo", 3);
+
+// Disable first run pages
+user_pref("browser.startup.homepage_override.mstone", "ignore");
+user_pref("startup.homepage_welcome_url", "");
+user_pref("startup.homepage_welcome_url.additional", "");
+
+// Privacy settings - keep login data
+user_pref("privacy.clearOnShutdown.cookies", false);
+user_pref("privacy.clearOnShutdown.sessions", false);
+user_pref("privacy.clearOnShutdown.formdata", false);
+user_pref("privacy.clearOnShutdown.downloads", false);
+user_pref("privacy.clearOnShutdown.history", false);
+
+// Security - remember passwords
+user_pref("signon.rememberSignons", true);
+user_pref("signon.autofillForms", true);
+'''
+            prefs_file.write_text(prefs_content)
+            
+            # Start Firefox with the persistent profile
+            firefox_process = subprocess.Popen([
+                "firefox-esr",
+                "--profile", str(firefox_profile_dir),
+                "--new-instance"
+            ], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            self.processes.append(firefox_process)
+            print(f"✓ Firefox started with persistent profile")
+            print(f"  Profile location: {firefox_profile_dir}")
+            
+        except Exception as e:
+            print(f"⚠ Firefox startup failed: {e}")
             
     def start_websockify(self):
         """Start websockify for noVNC"""
