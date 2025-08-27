@@ -146,7 +146,7 @@ wait
             firefox_profile_dir = Path.home() / "firefox_profile"
             firefox_profile_dir.mkdir(exist_ok=True)
             
-            # Create Firefox prefs for session saving
+            # Create Firefox prefs for session saving and stability
             prefs_file = firefox_profile_dir / "user.js"
             prefs_content = '''
 // Enable session restore
@@ -157,6 +157,23 @@ user_pref("browser.sessionstore.restore_hidden_tabs", true);
 user_pref("browser.sessionstore.restore_tabs_lazily", false);
 user_pref("browser.sessionstore.max_tabs_undo", 25);
 user_pref("browser.sessionstore.max_windows_undo", 3);
+
+// Stability improvements - reduce memory usage and crashes
+user_pref("dom.ipc.processCount", 2);  // Limit processes
+user_pref("dom.max_script_run_time", 30);
+user_pref("dom.max_chrome_script_run_time", 30);
+user_pref("browser.cache.memory.capacity", 51200);  // 50MB memory cache
+user_pref("browser.cache.disk.capacity", 358400);   // 350MB disk cache
+user_pref("browser.sessionhistory.max_total_viewers", 2);
+user_pref("browser.tabs.remote.autostart", false);  // Disable multiprocess temporarily
+
+// Disable hardware acceleration to prevent crashes in VNC
+user_pref("layers.acceleration.disabled", true);
+user_pref("gfx.direct2d.disabled", true);
+user_pref("webgl.disabled", true);
+
+// Auto-save sessions every 15 seconds
+user_pref("browser.sessionstore.interval", 15000);
 
 // Disable first run pages
 user_pref("browser.startup.homepage_override.mstone", "ignore");
@@ -173,22 +190,70 @@ user_pref("privacy.clearOnShutdown.history", false);
 // Security - remember passwords
 user_pref("signon.rememberSignons", true);
 user_pref("signon.autofillForms", true);
+
+// Disable crash reporting to prevent hangs
+user_pref("toolkit.crashreporter.enabled", false);
+user_pref("browser.crashReports.unsubmittedCheck.enabled", false);
 '''
             prefs_file.write_text(prefs_content)
             
-            # Start Firefox with the persistent profile
+            # Start Firefox with the persistent profile and stability options
             firefox_process = subprocess.Popen([
                 "firefox-esr",
                 "--profile", str(firefox_profile_dir),
-                "--new-instance"
-            ], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                "--new-instance",
+                "--safe-mode",  # Start in safe mode initially for stability
+                "--no-remote"   # Prevent interaction with other Firefox instances
+            ], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=os.setsid)
             
             self.processes.append(firefox_process)
-            print(f"✓ Firefox started with persistent profile")
+            print(f"✓ Firefox started with persistent profile (stable mode)")
             print(f"  Profile location: {firefox_profile_dir}")
+            
+            # Monitor Firefox and restart if it crashes
+            self.start_firefox_monitor(env)
             
         except Exception as e:
             print(f"⚠ Firefox startup failed: {e}")
+
+    def start_firefox_monitor(self, env):
+        """Monitor Firefox and restart it if it crashes"""
+        def monitor_firefox():
+            time.sleep(5)  # Initial wait
+            while True:
+                try:
+                    # Check if Firefox is running
+                    result = subprocess.run(
+                        ["pgrep", "-f", "firefox-esr"],
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    if result.returncode != 0:  # Firefox not running
+                        print("🔄 Firefox crashed, restarting...")
+                        
+                        # Restart Firefox
+                        firefox_profile_dir = Path.home() / "firefox_profile"
+                        firefox_process = subprocess.Popen([
+                            "firefox-esr",
+                            "--profile", str(firefox_profile_dir),
+                            "--new-instance",
+                            "--no-remote"
+                        ], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=os.setsid)
+                        
+                        self.processes.append(firefox_process)
+                        print("✓ Firefox restarted successfully")
+                    
+                    time.sleep(10)  # Check every 10 seconds
+                    
+                except Exception as e:
+                    print(f"⚠ Firefox monitor error: {e}")
+                    time.sleep(10)
+        
+        # Start monitor in background thread
+        import threading
+        monitor_thread = threading.Thread(target=monitor_firefox, daemon=True)
+        monitor_thread.start()
             
     def start_websockify(self):
         """Start websockify for noVNC"""
