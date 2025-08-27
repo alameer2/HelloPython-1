@@ -215,35 +215,160 @@ user_pref("signon.autofillForms", true);
             print(f"✗ Websockify startup error: {e}")
             return None
             
-    def cleanup(self):
-        """Clean up processes"""
-        print("\nCleaning up...")
+    def backup_before_shutdown(self):
+        """نسخ احتياطي قبل الإغلاق"""
+        try:
+            profile_dir = Path.home() / "firefox_profile"
+            backup_dir = Path.home() / "firefox_backups"
+            
+            if profile_dir.exists():
+                backup_dir.mkdir(exist_ok=True)
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                backup_file = backup_dir / f"firefox_shutdown_backup_{timestamp}.tar.gz"
+                
+                result = subprocess.run([
+                    "tar", "-czf", str(backup_file),
+                    "-C", str(Path.home()),
+                    "firefox_profile"
+                ], capture_output=True)
+                
+                if result.returncode == 0:
+                    print("✓ تم حفظ بيانات فايرفوكس قبل الإغلاق")
+                else:
+                    print("⚠ فشل في حفظ البيانات قبل الإغلاق")
+        except Exception as e:
+            print(f"⚠ خطأ في النسخ الاحتياطي قبل الإغلاق: {e}")
+
+    def cleanup_with_backup(self):
+        """تنظيف مع نسخ احتياطي تلقائي"""
+        print("\nبدء الإغلاق الآمن...")
         
-        # Kill websockify processes
+        # نسخ احتياطي قبل الإغلاق
+        self.backup_before_shutdown()
+        
+        # تنظيف العمليات
         for process in self.processes:
             try:
                 os.killpg(os.getpgid(process.pid), signal.SIGTERM)
             except:
                 pass
                 
-        # Kill VNC server
+        # إيقاف خادم VNC
         try:
             subprocess.run(["vncserver", "-kill", self.vnc_display], 
                          capture_output=True)
         except:
             pass
             
-        print("✓ Cleanup completed")
+        print("✓ تم الإغلاق الآمن مع حفظ البيانات")
+
+    def cleanup(self):
+        """Clean up processes (fallback)"""
+        self.cleanup_with_backup()
         
+    def restore_firefox_data(self):
+        """استعادة بيانات فايرفوكس تلقائياً عند البدء"""
+        try:
+            backup_dir = Path.home() / "firefox_backups"
+            profile_dir = Path.home() / "firefox_profile"
+            
+            if backup_dir.exists():
+                backups = list(backup_dir.glob("firefox_backup_*.tar.gz"))
+                if backups:
+                    latest_backup = max(backups, key=lambda x: x.stat().st_mtime)
+                    print(f"🔄 استعادة بيانات فايرفوكس من: {latest_backup.name}")
+                    
+                    # حذف المجلد القديم إذا كان موجوداً
+                    if profile_dir.exists():
+                        subprocess.run(["rm", "-rf", str(profile_dir)], capture_output=True)
+                    
+                    # استعادة النسخة الاحتياطية
+                    result = subprocess.run(
+                        ["tar", "-xzf", str(latest_backup), "-C", str(Path.home())],
+                        capture_output=True
+                    )
+                    
+                    if result.returncode == 0:
+                        print("✓ تم استعادة بيانات فايرفوكس بنجاح")
+                    else:
+                        print("⚠ فشل في استعادة البيانات، سيتم إنشاء ملف تعريف جديد")
+                else:
+                    print("📁 لا توجد نسخ احتياطية، سيتم إنشاء ملف تعريف جديد")
+            else:
+                print("📁 مجلد النسخ الاحتياطية غير موجود، سيتم إنشاء ملف تعريف جديد")
+                
+        except Exception as e:
+            print(f"⚠ خطأ في استعادة البيانات: {e}")
+
+    def start_auto_backup(self):
+        """بدء النسخ الاحتياطي التلقائي"""
+        try:
+            backup_script = Path.home() / "auto_backup.py"
+            backup_content = '''#!/usr/bin/env python3
+import time
+import subprocess
+import os
+from pathlib import Path
+from datetime import datetime
+
+def backup_firefox():
+    profile_dir = Path.home() / "firefox_profile"
+    backup_dir = Path.home() / "firefox_backups"
+    
+    if not profile_dir.exists():
+        return
+        
+    backup_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_file = backup_dir / f"firefox_backup_{timestamp}.tar.gz"
+    
+    try:
+        subprocess.run([
+            "tar", "-czf", str(backup_file),
+            "-C", str(Path.home()),
+            "firefox_profile"
+        ], capture_output=True, check=True)
+        
+        # حفظ آخر 10 نسخ احتياطية فقط
+        backups = sorted(backup_dir.glob("firefox_backup_*.tar.gz"), 
+                        key=lambda x: x.stat().st_mtime, reverse=True)
+        for old_backup in backups[10:]:
+            old_backup.unlink()
+            
+    except Exception as e:
+        print(f"Backup error: {e}")
+
+# نسخ احتياطي كل 30 دقيقة
+while True:
+    time.sleep(1800)  # 30 minutes
+    backup_firefox()
+'''
+            backup_script.write_text(backup_content)
+            backup_script.chmod(0o755)
+            
+            # بدء عملية النسخ الاحتياطي في الخلفية
+            backup_process = subprocess.Popen([
+                "python3", str(backup_script)
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            self.processes.append(backup_process)
+            print("✓ تم بدء النسخ الاحتياطي التلقائي (كل 30 دقيقة)")
+            
+        except Exception as e:
+            print(f"⚠ فشل في بدء النسخ الاحتياطي التلقائي: {e}")
+
     def run(self):
         """Main execution function"""
         print("🚀 Starting Professional VNC Setup...")
         print("=" * 50)
         
-        # Register cleanup function
-        atexit.register(self.cleanup)
+        # Register cleanup function with auto-backup
+        atexit.register(self.cleanup_with_backup)
         signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
         signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
+        
+        # استعادة بيانات فايرفوكس تلقائياً
+        self.restore_firefox_data()
         
         # Setup steps
         self.setup_vnc_dir()
@@ -257,6 +382,9 @@ user_pref("signon.autofillForms", true);
         websockify_process = self.start_websockify()
         if not websockify_process:
             return False
+            
+        # بدء النسخ الاحتياطي التلقائي
+        self.start_auto_backup()
             
         print("\n" + "=" * 50)
         print("🎉 VNC Setup Complete!")
