@@ -10,3 +10,59 @@ recordings
 *.swp
 *~
 noVNC-*.tgz
+
+# VNC and Firefox data
+.vnc/passwd
+.vnc/auth
+.vnc/*.log
+.vnc/*.pid
+
+# Firefox backups (optional - remove these lines if you want to include backups in git)
+firefox_backups/
+firefox_profile/
+
+# Python
+__pycache__/
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Replit specific
+.pythonlibs

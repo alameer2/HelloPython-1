@@ -18,6 +18,10 @@ author = "agent"
 task = "workflow.run"
 args = "VNC Desktop Server"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Main VNC Project"
+
 [[workflows.workflow]]
 name = "VNC Desktop Server"
 author = "agent"
@@ -25,6 +29,18 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python3 start_vnc.py"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow]]
+name = "Main VNC Project"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python3 run.py"
 waitForPort = 5000
 
 [workflows.workflow.metadata]
