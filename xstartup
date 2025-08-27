@@ -1,0 +1,15 @@
+#!/bin/bash
+# xstartup - VNC session startup script
+
+# Set display geometry
+export GEOMETRY="1024x768"
+
+# Start X window system
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+
+# Start desktop environment
+exec fluxbox &
+
+# Keep the session running
+wait
