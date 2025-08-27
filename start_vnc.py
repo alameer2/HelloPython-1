@@ -159,13 +159,13 @@ user_pref("browser.sessionstore.max_tabs_undo", 25);
 user_pref("browser.sessionstore.max_windows_undo", 3);
 
 // Stability improvements - reduce memory usage and crashes
-user_pref("dom.ipc.processCount", 2);  // Limit processes
-user_pref("dom.max_script_run_time", 30);
-user_pref("dom.max_chrome_script_run_time", 30);
-user_pref("browser.cache.memory.capacity", 51200);  // 50MB memory cache
-user_pref("browser.cache.disk.capacity", 358400);   // 350MB disk cache
-user_pref("browser.sessionhistory.max_total_viewers", 2);
-user_pref("browser.tabs.remote.autostart", false);  // Disable multiprocess temporarily
+user_pref("dom.ipc.processCount", 1);  // Single process for stability
+user_pref("dom.max_script_run_time", 0);  // Disable script timeout
+user_pref("dom.max_chrome_script_run_time", 0);  // Disable chrome script timeout
+user_pref("browser.cache.memory.capacity", 32768);  // 32MB memory cache
+user_pref("browser.cache.disk.capacity", 204800);   // 200MB disk cache
+user_pref("browser.sessionhistory.max_total_viewers", 1);
+user_pref("browser.tabs.remote.autostart", false);  // Disable multiprocess
 
 // Disable hardware acceleration to prevent crashes in VNC
 user_pref("layers.acceleration.disabled", true);
@@ -202,7 +202,6 @@ user_pref("browser.crashReports.unsubmittedCheck.enabled", false);
                 "firefox-esr",
                 "--profile", str(firefox_profile_dir),
                 "--new-instance",
-                "--safe-mode",  # Start in safe mode initially for stability
                 "--no-remote"   # Prevent interaction with other Firefox instances
             ], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=os.setsid)
             
@@ -244,7 +243,7 @@ user_pref("browser.crashReports.unsubmittedCheck.enabled", false);
                         self.processes.append(firefox_process)
                         print("✓ Firefox restarted successfully")
                     
-                    time.sleep(10)  # Check every 10 seconds
+                    time.sleep(30)  # Check every 30 seconds
                     
                 except Exception as e:
                     print(f"⚠ Firefox monitor error: {e}")
