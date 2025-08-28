@@ -229,8 +229,7 @@ user_pref("network.prefetch-next", false);
             print(f"✓ Firefox started with persistent profile (stable mode)")
             print(f"  Profile location: {firefox_profile_dir}")
             
-            # Monitor Firefox and restart if it crashes
-            self.start_firefox_monitor(env)
+            # Remove Firefox monitoring - let it run independently
             
         except Exception as e:
             print(f"⚠ Firefox startup failed: {e}")
@@ -473,8 +472,7 @@ while True:
         if not websockify_process:
             return False
             
-        # بدء النسخ الاحتياطي التلقائي
-        self.start_auto_backup()
+        # Remove auto backup to prevent Firefox interference
             
         print("\n" + "=" * 50)
         print("🎉 VNC Setup Complete!")
