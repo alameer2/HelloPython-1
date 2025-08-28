@@ -1,10 +1,10 @@
-modules = ["python-3.11"]
+modules = ["nodejs-20", "web", "python-3.11", "bash"]
 [agent]
 expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["firefox-esr", "fluxbox", "openbox", "tigervnc", "wget", "git"]
+packages = ["firefox-esr", "fluxbox", "git", "openbox", "tigervnc", "wget"]
 
 [workflows]
 runButton = "Project"
