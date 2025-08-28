@@ -149,12 +149,13 @@ wait
             # Create Firefox prefs for session saving and stability
             prefs_file = firefox_profile_dir / "user.js"
             prefs_content = '''
-// Enhanced stability settings for VNC environment
-user_pref("browser.sessionstore.resume_from_crash", false);
-user_pref("browser.startup.page", 0); // Start with blank page
+// Enhanced stability settings with session preservation
+user_pref("browser.sessionstore.resume_from_crash", true);
+user_pref("browser.startup.page", 3); // Restore previous session
 user_pref("browser.sessionstore.restore_on_demand", false);
-user_pref("browser.sessionstore.max_tabs_undo", 0);
-user_pref("browser.sessionstore.max_windows_undo", 0);
+user_pref("browser.sessionstore.restore_hidden_tabs", true);
+user_pref("browser.sessionstore.max_tabs_undo", 25);
+user_pref("browser.sessionstore.max_windows_undo", 3);
 
 // Force single process mode - critical for VNC stability
 user_pref("browser.tabs.remote.autostart", false);
@@ -197,11 +198,17 @@ user_pref("app.update.enabled", false);
 user_pref("app.update.auto", false);
 user_pref("services.sync.prefs.sync.browser.startup.homepage", false);
 
-// Minimal UI and features
-user_pref("browser.newtabpage.enabled", false);
-user_pref("browser.startup.homepage", "about:blank");
-user_pref("startup.homepage_welcome_url", "");
-user_pref("startup.homepage_welcome_url.additional", "");
+// Session and login preservation
+user_pref("browser.newtabpage.enabled", true);
+user_pref("browser.sessionstore.interval", 15000); // Save every 15 seconds
+user_pref("privacy.clearOnShutdown.cookies", false);
+user_pref("privacy.clearOnShutdown.sessions", false);
+user_pref("privacy.clearOnShutdown.formdata", false);
+user_pref("privacy.clearOnShutdown.downloads", false);
+user_pref("privacy.clearOnShutdown.history", false);
+user_pref("signon.rememberSignons", true);
+user_pref("signon.autofillForms", true);
+user_pref("signon.generation.enabled", true);
 
 // Disable potentially problematic features
 user_pref("accessibility.force_disabled", 1);
@@ -305,28 +312,20 @@ user_pref("network.prefetch-next", false);
             return None
             
     def backup_before_shutdown(self):
-        """نسخ احتياطي قبل الإغلاق"""
+        """نسخ احتياطي ذكي قبل الإغلاق"""
         try:
-            profile_dir = Path.home() / "firefox_profile"
-            backup_dir = Path.home() / "firefox_backups"
-            
-            if profile_dir.exists():
-                backup_dir.mkdir(exist_ok=True)
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                backup_file = backup_dir / f"firefox_shutdown_backup_{timestamp}.tar.gz"
-                
+            backup_script = Path.home() / "smart_backup.py"
+            if backup_script.exists():
                 result = subprocess.run([
-                    "tar", "-czf", str(backup_file),
-                    "-C", str(Path.home()),
-                    "firefox_profile"
-                ], capture_output=True)
+                    "python3", str(backup_script)
+                ], capture_output=True, text=True)
                 
                 if result.returncode == 0:
-                    print("✓ تم حفظ بيانات فايرفوكس قبل الإغلاق")
+                    print("✓ تم حفظ جلسة Firefox والحسابات بنجاح")
                 else:
-                    print("⚠ فشل في حفظ البيانات قبل الإغلاق")
+                    print("⚠ فشل في حفظ الجلسة")
         except Exception as e:
-            print(f"⚠ خطأ في النسخ الاحتياطي قبل الإغلاق: {e}")
+            print(f"⚠ خطأ في حفظ الجلسة: {e}")
 
     def cleanup_with_backup(self):
         """تنظيف مع نسخ احتياطي تلقائي"""
@@ -356,95 +355,97 @@ user_pref("network.prefetch-next", false);
         self.cleanup_with_backup()
         
     def restore_firefox_data(self):
-        """استعادة بيانات فايرفوكس تلقائياً عند البدء"""
+        """استعادة جلسة Firefox والحسابات المحفوظة"""
         try:
             backup_dir = Path.home() / "firefox_backups"
             profile_dir = Path.home() / "firefox_profile"
             
             if backup_dir.exists():
-                backups = list(backup_dir.glob("firefox_backup_*.tar.gz"))
-                if backups:
-                    latest_backup = max(backups, key=lambda x: x.stat().st_mtime)
-                    print(f"🔄 استعادة بيانات فايرفوكس من: {latest_backup.name}")
+                # البحث عن جلسات Firefox المحفوظة
+                session_backups = list(backup_dir.glob("firefox_session_*.tar.gz"))
+                if session_backups:
+                    latest_session = max(session_backups, key=lambda x: x.stat().st_mtime)
+                    print(f"🔄 استعادة جلسة Firefox المحفوظة: {latest_session.name}")
                     
-                    # حذف المجلد القديم إذا كان موجوداً
+                    # حذف الملف الشخصي القديم إذا كان موجوداً
                     if profile_dir.exists():
                         subprocess.run(["rm", "-rf", str(profile_dir)], capture_output=True)
                     
-                    # استعادة النسخة الاحتياطية
+                    # استعادة الجلسة المحفوظة
                     result = subprocess.run(
-                        ["tar", "-xzf", str(latest_backup), "-C", str(Path.home())],
+                        ["tar", "-xzf", str(latest_session), "-C", str(Path.home())],
                         capture_output=True
                     )
                     
                     if result.returncode == 0:
-                        print("✓ تم استعادة بيانات فايرفوكس بنجاح")
+                        print("✓ تم استعادة جلسة Firefox والحسابات المحفوظة بنجاح")
+                        return True
                     else:
-                        print("⚠ فشل في استعادة البيانات، سيتم إنشاء ملف تعريف جديد")
+                        print("⚠ فشل في استعادة الجلسة، سيتم إنشاء ملف تعريف جديد")
                 else:
-                    print("📁 لا توجد نسخ احتياطية، سيتم إنشاء ملف تعريف جديد")
+                    print("📁 لا توجد جلسات محفوظة، سيتم إنشاء ملف تعريف جديد")
             else:
-                print("📁 مجلد النسخ الاحتياطية غير موجود، سيتم إنشاء ملف تعريف جديد")
+                print("📁 مجلد الجلسات غير موجود، سيتم إنشاء ملف تعريف جديد")
+                
+            return False
                 
         except Exception as e:
-            print(f"⚠ خطأ في استعادة البيانات: {e}")
+            print(f"⚠ خطأ في استعادة الجلسة: {e}")
+            return False
 
-    def start_auto_backup(self):
-        """بدء النسخ الاحتياطي التلقائي"""
+    def setup_smart_backup(self):
+        """إعداد نظام نسخ احتياطي ذكي - حفظ فقط عند الإغلاق"""
         try:
-            backup_script = Path.home() / "auto_backup.py"
+            # إنشاء script للنسخ الاحتياطي عند الحاجة فقط
+            backup_script = Path.home() / "smart_backup.py"
             backup_content = '''#!/usr/bin/env python3
-import time
 import subprocess
 import os
 from pathlib import Path
 from datetime import datetime
 
-def backup_firefox():
+def backup_firefox_on_shutdown():
+    """نسخ احتياطي ذكي عند الإغلاق فقط"""
     profile_dir = Path.home() / "firefox_profile"
     backup_dir = Path.home() / "firefox_backups"
     
     if not profile_dir.exists():
-        return
+        return False
         
     backup_dir.mkdir(exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_file = backup_dir / f"firefox_backup_{timestamp}.tar.gz"
+    backup_file = backup_dir / f"firefox_session_{timestamp}.tar.gz"
     
     try:
+        # نسخ احتياطي للملف الشخصي بالكامل
         subprocess.run([
             "tar", "-czf", str(backup_file),
             "-C", str(Path.home()),
             "firefox_profile"
         ], capture_output=True, check=True)
         
-        # حفظ آخر 10 نسخ احتياطية فقط
-        backups = sorted(backup_dir.glob("firefox_backup_*.tar.gz"), 
+        # الاحتفاظ بآخر 5 نسخ احتياطية فقط
+        backups = sorted(backup_dir.glob("firefox_session_*.tar.gz"), 
                         key=lambda x: x.stat().st_mtime, reverse=True)
-        for old_backup in backups[10:]:
+        for old_backup in backups[5:]:
             old_backup.unlink()
             
+        print(f"✓ تم حفظ جلسة Firefox: {backup_file.name}")
+        return True
+            
     except Exception as e:
-        print(f"Backup error: {e}")
+        print(f"⚠ خطأ في النسخ الاحتياطي: {e}")
+        return False
 
-# نسخ احتياطي كل 30 دقيقة
-while True:
-    time.sleep(1800)  # 30 minutes
-    backup_firefox()
+if __name__ == "__main__":
+    backup_firefox_on_shutdown()
 '''
             backup_script.write_text(backup_content)
             backup_script.chmod(0o755)
-            
-            # بدء عملية النسخ الاحتياطي في الخلفية
-            backup_process = subprocess.Popen([
-                "python3", str(backup_script)
-            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            
-            self.processes.append(backup_process)
-            print("✓ تم بدء النسخ الاحتياطي التلقائي (كل 30 دقيقة)")
+            print("✓ تم إعداد نظام النسخ الاحتياطي الذكي")
             
         except Exception as e:
-            print(f"⚠ فشل في بدء النسخ الاحتياطي التلقائي: {e}")
+            print(f"⚠ فشل في إعداد النسخ الاحتياطي الذكي: {e}")
 
     def run(self):
         """Main execution function"""
@@ -472,7 +473,8 @@ while True:
         if not websockify_process:
             return False
             
-        # Remove auto backup to prevent Firefox interference
+        # Add smart backup on shutdown only
+        self.setup_smart_backup()
             
         print("\n" + "=" * 50)
         print("🎉 VNC Setup Complete!")
