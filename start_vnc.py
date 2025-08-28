@@ -217,10 +217,12 @@ user_pref("network.prefetch-next", false);
                 "--profile", str(firefox_profile_dir),
                 "--new-instance",
                 "--no-remote",   # Prevent interaction with other Firefox instances
-                "--safe-mode",   # Start in safe mode for maximum stability
                 "--disable-extensions",
                 "--disable-plugins",
-                "--no-sandbox"   # VNC environment doesn't need sandboxing
+                "--no-sandbox",   # VNC environment doesn't need sandboxing
+                "--disable-dev-shm-usage",  # Prevent crashes in limited environments
+                "--disable-gpu",  # Disable GPU for VNC stability
+                "--single-process"  # Force single process mode
             ], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=os.setsid)
             
             self.processes.append(firefox_process)
@@ -256,10 +258,12 @@ user_pref("network.prefetch-next", false);
                             "--profile", str(firefox_profile_dir),
                             "--new-instance",
                             "--no-remote",
-                            "--safe-mode",
                             "--disable-extensions",
                             "--disable-plugins",
-                            "--no-sandbox"
+                            "--no-sandbox",
+                            "--disable-dev-shm-usage",
+                            "--disable-gpu",
+                            "--single-process"
                         ], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=os.setsid)
                         
                         self.processes.append(firefox_process)
