@@ -149,51 +149,65 @@ wait
             # Create Firefox prefs for session saving and stability
             prefs_file = firefox_profile_dir / "user.js"
             prefs_content = '''
-// Enable session restore
-user_pref("browser.sessionstore.resume_from_crash", true);
-user_pref("browser.startup.page", 3); // Restore previous session
+// Enhanced stability settings for VNC environment
+user_pref("browser.sessionstore.resume_from_crash", false);
+user_pref("browser.startup.page", 0); // Start with blank page
 user_pref("browser.sessionstore.restore_on_demand", false);
-user_pref("browser.sessionstore.restore_hidden_tabs", true);
-user_pref("browser.sessionstore.restore_tabs_lazily", false);
-user_pref("browser.sessionstore.max_tabs_undo", 25);
-user_pref("browser.sessionstore.max_windows_undo", 3);
+user_pref("browser.sessionstore.max_tabs_undo", 0);
+user_pref("browser.sessionstore.max_windows_undo", 0);
 
-// Stability improvements - reduce memory usage and crashes
-user_pref("dom.ipc.processCount", 1);  // Single process for stability
-user_pref("dom.max_script_run_time", 0);  // Disable script timeout
-user_pref("dom.max_chrome_script_run_time", 0);  // Disable chrome script timeout
-user_pref("browser.cache.memory.capacity", 32768);  // 32MB memory cache
-user_pref("browser.cache.disk.capacity", 204800);   // 200MB disk cache
-user_pref("browser.sessionhistory.max_total_viewers", 1);
-user_pref("browser.tabs.remote.autostart", false);  // Disable multiprocess
+// Force single process mode - critical for VNC stability
+user_pref("browser.tabs.remote.autostart", false);
+user_pref("browser.tabs.remote.desktopbehavior", false);
+user_pref("dom.ipc.processCount", 1);
+user_pref("dom.ipc.processCount.extension", 1);
+user_pref("dom.ipc.processCount.file", 1);
+user_pref("dom.ipc.processCount.privilegedabout", 1);
+user_pref("dom.ipc.processCount.privilegedmozilla", 1);
+user_pref("dom.ipc.processCount.web", 1);
+user_pref("dom.ipc.processCount.webIsolated", 1);
 
-// Disable hardware acceleration to prevent crashes in VNC
+// Disable all forms of multiprocessing
+user_pref("dom.ipc.plugins.enabled", false);
+user_pref("dom.ipc.plugins.enabled.libflashplayer.so", false);
+user_pref("extensions.webextensions.remote", false);
+
+// Memory and performance optimizations
+user_pref("browser.cache.memory.capacity", 16384);  // 16MB memory cache
+user_pref("browser.cache.disk.capacity", 51200);    // 50MB disk cache
+user_pref("browser.sessionhistory.max_total_viewers", 0);
+user_pref("dom.max_script_run_time", 0);
+user_pref("dom.max_chrome_script_run_time", 0);
+
+// Disable hardware acceleration completely
 user_pref("layers.acceleration.disabled", true);
 user_pref("gfx.direct2d.disabled", true);
 user_pref("webgl.disabled", true);
+user_pref("gfx.canvas.azure.backends", "cairo");
+user_pref("layers.acceleration.force-enabled", false);
 
-// Auto-save sessions every 15 seconds
-user_pref("browser.sessionstore.interval", 15000);
-
-// Disable first run pages
+// Disable crash reporting and error dialogs
+user_pref("toolkit.crashreporter.enabled", false);
+user_pref("browser.crashReports.unsubmittedCheck.enabled", false);
+user_pref("browser.shell.checkDefaultBrowser", false);
 user_pref("browser.startup.homepage_override.mstone", "ignore");
+
+// Disable update and sync services
+user_pref("app.update.enabled", false);
+user_pref("app.update.auto", false);
+user_pref("services.sync.prefs.sync.browser.startup.homepage", false);
+
+// Minimal UI and features
+user_pref("browser.newtabpage.enabled", false);
+user_pref("browser.startup.homepage", "about:blank");
 user_pref("startup.homepage_welcome_url", "");
 user_pref("startup.homepage_welcome_url.additional", "");
 
-// Privacy settings - keep login data
-user_pref("privacy.clearOnShutdown.cookies", false);
-user_pref("privacy.clearOnShutdown.sessions", false);
-user_pref("privacy.clearOnShutdown.formdata", false);
-user_pref("privacy.clearOnShutdown.downloads", false);
-user_pref("privacy.clearOnShutdown.history", false);
-
-// Security - remember passwords
-user_pref("signon.rememberSignons", true);
-user_pref("signon.autofillForms", true);
-
-// Disable crash reporting to prevent hangs
-user_pref("toolkit.crashreporter.enabled", false);
-user_pref("browser.crashReports.unsubmittedCheck.enabled", false);
+// Disable potentially problematic features
+user_pref("accessibility.force_disabled", 1);
+user_pref("browser.safebrowsing.enabled", false);
+user_pref("browser.safebrowsing.malware.enabled", false);
+user_pref("network.prefetch-next", false);
 '''
             prefs_file.write_text(prefs_content)
             
@@ -202,7 +216,11 @@ user_pref("browser.crashReports.unsubmittedCheck.enabled", false);
                 "firefox-esr",
                 "--profile", str(firefox_profile_dir),
                 "--new-instance",
-                "--no-remote"   # Prevent interaction with other Firefox instances
+                "--no-remote",   # Prevent interaction with other Firefox instances
+                "--safe-mode",   # Start in safe mode for maximum stability
+                "--disable-extensions",
+                "--disable-plugins",
+                "--no-sandbox"   # VNC environment doesn't need sandboxing
             ], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=os.setsid)
             
             self.processes.append(firefox_process)
@@ -237,7 +255,11 @@ user_pref("browser.crashReports.unsubmittedCheck.enabled", false);
                             "firefox-esr",
                             "--profile", str(firefox_profile_dir),
                             "--new-instance",
-                            "--no-remote"
+                            "--no-remote",
+                            "--safe-mode",
+                            "--disable-extensions",
+                            "--disable-plugins",
+                            "--no-sandbox"
                         ], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=os.setsid)
                         
                         self.processes.append(firefox_process)
